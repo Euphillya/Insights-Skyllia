@@ -8,6 +8,7 @@ import fr.euphyllia.skyllia.api.SkylliaAPI;
 import fr.euphyllia.skyllia.api.skyblock.Island;
 import fr.euphyllia.skyllia.api.skyblock.model.Position;
 import fr.euphyllia.skyllia.api.utils.helper.RegionHelper;
+import fr.euphyllia.skyllia.configuration.ConfigToml;
 import org.bukkit.World;
 
 import java.util.ArrayList;
@@ -41,8 +42,8 @@ public class SkylliaInsightAddon implements InsightsAddon {
 
     public class SkylliaRegion implements Region {
 
-        private Island island;
-        private World world;
+        private final Island island;
+        private final World world;
         public SkylliaRegion(Island island, World world) {
             this.island = island;
             this.world = world;
@@ -60,13 +61,48 @@ public class SkylliaInsightAddon implements InsightsAddon {
 
         @Override
         public List<ChunkPart> toChunkParts() {
-            List<Position> islandPositionWithRadius = RegionHelper.getRegionsInRadius(island.getPosition(), (int) Math.round(island.getSize())+1);
+            List<ChunkPart> parts = new ArrayList<>();
 
-            List<ChunkPart> parts = new ArrayList<>(islandPositionWithRadius.size());
-            for (Position chunk : islandPositionWithRadius) {
-                parts.add(new ChunkPart(new ChunkLocation(world, chunk.x(), chunk.z())));
+            for (Position position : spiralStartCenter(island.getPosition(), island.getSize())) {
+                parts.add(new ChunkPart(new ChunkLocation(world, position.x(), position.z())));
             }
             return parts;
+        }
+
+
+        public static List<Position> spiralStartCenter(Position islandRegion, double size) {
+            List<Position> positions = new ArrayList<>();
+
+            Position chunk = RegionHelper.getChunkCenterRegion(islandRegion.x(), islandRegion.z());
+            int cx = chunk.x();
+            int cz = chunk.z();
+            int x = 0, z = 0;
+            int dx = 0, dz = -1;
+            int maxI = (int) Math.pow((33 * ConfigToml.regionDistance), 2);
+            List<Position> islandPositionWithRadius = RegionHelper.getRegionsInRadius(islandRegion, (int) Math.round(size));
+            List<Position> regionCleaned = new ArrayList<>();
+
+            for (int i = 0; i < maxI; i++) {
+                if ((-size / 2 <= x) && (x <= size / 2) && (-size / 2 <= z) && (z <= size / 2)) {
+                    Position chunkPos = new Position(cx + x, cz + z);
+                    Position region = RegionHelper.getRegionInChunk(chunkPos.x(), chunkPos.z());
+                    if (islandPositionWithRadius.contains(region)) {
+                        if (!regionCleaned.contains(region)) {
+                            regionCleaned.add(region);
+                        }
+                        positions.add(chunkPos);
+                    }
+                }
+
+                if ((x == z) || ((x < 0) && (x == -z)) || ((x > 0) && (x == 1 - z))) {
+                    int temp = dx;
+                    dx = -dz;
+                    dz = temp;
+                }
+                x += dx;
+                z += dz;
+            }
+            return positions;
         }
     }
 }
